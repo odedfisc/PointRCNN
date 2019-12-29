@@ -3,6 +3,7 @@ from scipy.spatial import Delaunay
 import scipy
 import lib.utils.object3d as object3d
 import torch
+import copy
 
 
 def get_objects_from_label(label_file):
@@ -233,3 +234,19 @@ def get_iou3d(corners3d, query_corners3d, need_bev=False):
         return iou3d, iou_bev
 
     return iou3d
+
+
+def boxes_to_lidar_coordinates(boxes, calib):
+    """
+    rotate detected boxes from camera to lidar
+    :param boxes: np.array(K, 7)
+    :param calib: Calibration
+    :return:lidar_boxes
+    """
+    ret_boxes = copy.deepcopy(boxes)
+    loc = boxes[:, :3]
+    ret_boxes[:, :3] = calib.rect_to_lidar(loc)
+    ret_boxes[:, 3] = boxes[:, 5]
+    ret_boxes[:, 4] = boxes[:, 4]
+    ret_boxes[:, 5] = boxes[:, 3]
+    return ret_boxes

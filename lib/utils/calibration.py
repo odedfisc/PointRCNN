@@ -58,6 +58,18 @@ class Calibration(object):
         # pts_rect = reduce(np.dot, (pts_lidar_hom, self.V2C.T, self.R0.T))
         return pts_rect
 
+    def rect_to_lidar(self, pts_rect):
+        """
+
+        :param pts_rect: (N, 3)
+        :return: pts_lidar: (N, 3)
+        """
+        velo_to_lidar = np.eye(4)
+        velo_to_lidar[:3, :] = self.V2C
+        pts_lidar_hom = self.cart_to_hom(pts_rect)
+        pts_lidar = np.dot(pts_lidar_hom, velo_to_lidar)
+        return pts_lidar[:, :3]
+
     def rect_to_img(self, pts_rect):
         """
         :param pts_rect: (N, 3)

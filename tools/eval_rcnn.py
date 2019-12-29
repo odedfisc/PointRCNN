@@ -22,7 +22,7 @@ import time
 from tensorboardX import SummaryWriter
 import tqdm
 
-
+from web_visualizer import pc_show
 np.random.seed(1024)  # set the same seed
 
 parser = argparse.ArgumentParser(description="arg parser")
@@ -327,6 +327,9 @@ def eval_one_epoch_rcnn(model, dataloader, epoch_id, result_dir, logger):
             raw_scores = rcnn_cls[:, pred_classes]
             norm_scores = cls_norm_scores[:, pred_classes]
 
+        boxes = pred_boxes3d.cpu().data.numpy()[0]
+        classes = pred_classes.cpu().data.numpy()[0]
+        boxes = np.concatenate((boxes, classes), axis=1)
         # evaluation
         disp_dict = {'mode': mode}
         if not args.test:
@@ -527,6 +530,7 @@ def eval_one_epoch_joint(model, dataloader, epoch_id, result_dir, logger):
             raw_scores = rcnn_cls[:, pred_classes]
             norm_scores = cls_norm_scores[:, pred_classes]
 
+
         # evaluation
         recalled_num = gt_num = rpn_iou = 0
         if not args.test:
@@ -620,9 +624,18 @@ def eval_one_epoch_joint(model, dataloader, epoch_id, result_dir, logger):
             pred_boxes3d_selected = pred_boxes3d_selected[keep_idx]
             scores_selected = raw_scores_selected[keep_idx]
             pred_boxes3d_selected, scores_selected = pred_boxes3d_selected.cpu().numpy(), scores_selected.cpu().numpy()
-
             cur_sample_id = sample_id[k]
             calib = dataset.get_calib(cur_sample_id)
+            image = dataset.get_image(cur_sample_id)
+            boxes = pred_boxes3d_selected
+            classes = scores_selected
+            boxes = np.concatenate((boxes, classes), axis=1)
+            ref = (data['pts_features'][0] + 0.5) * 255
+            pc = data['pts_input'][0]
+            pts_lidar = calib.rect_to_lidar(pc)
+            pc = np.concatenate((pts_lidar, ref), axis=1)
+            ret_boxes = kitti_utils.boxes_to_lidar_coordinates(boxes, calib)
+            pc_show(pc, list(ret_boxes), [image])
             final_total += pred_boxes3d_selected.shape[0]
             image_shape = dataset.get_image_shape(cur_sample_id)
             save_kitti_format(cur_sample_id, calib, pred_boxes3d_selected, final_output_dir, scores_selected, image_shape)
