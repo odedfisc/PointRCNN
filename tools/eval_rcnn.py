@@ -630,7 +630,7 @@ def eval_one_epoch_joint(model, dataloader, epoch_id, result_dir, logger):
             boxes = pred_boxes3d_selected
             classes = scores_selected
             boxes = np.concatenate((boxes, classes), axis=1)
-            ref = (data['pts_features'][0] + 0.5) * 255
+            ref = (data['pts_features'][0, :, 0][:, None] + 0.5) * 255
             pc = data['pts_input'][0]
             pts_lidar = calib.rect_to_lidar(pc)
             pc = np.concatenate((pts_lidar, ref), axis=1)

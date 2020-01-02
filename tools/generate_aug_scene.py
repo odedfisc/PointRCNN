@@ -146,7 +146,7 @@ class AugSceneGenerator(KittiDataset):
             return True
         return False
 
-    def aug_one_scene(self, sample_id, pts_rect, pts_intensity, all_gt_boxes3d):
+    def aug_one_scene(self, sample_id, pts_rect, pts_intensity, clusters, all_gt_boxes3d):
         """
         :param pts_rect: (N, 3)
         :param gt_boxes3d: (M1, 7)
@@ -163,7 +163,7 @@ class AugSceneGenerator(KittiDataset):
 
         extra_gt_obj_list = []
         extra_gt_boxes3d_list = []
-        new_pts_list, new_pts_intensity_list = [], []
+        new_pts_list, new_pts_intensity_list, new_clusters_list = [], [], []
         src_pts_flag = np.ones(pts_rect.shape[0], dtype=np.int32)
 
         road_plane = self.get_road_plane(sample_id)
@@ -175,6 +175,7 @@ class AugSceneGenerator(KittiDataset):
             rand_idx = np.random.randint(0, self.gt_database.__len__() - 1)
 
             new_gt_dict = self.gt_database[rand_idx]
+            new_clusters = new_gt_dict['clusters'].copy()
             new_gt_box3d = new_gt_dict['gt_box3d'].copy()
             new_gt_points = new_gt_dict['points'].copy()
             new_gt_intensity = new_gt_dict['intensity'].copy()
@@ -210,6 +211,7 @@ class AugSceneGenerator(KittiDataset):
             src_pts_flag[pt_mask_flag] = 0  # remove the original points which are inside the new box
 
             new_pts_list.append(new_gt_points)
+            new_clusters_list.append(new_clusters)
             new_pts_intensity_list.append(new_gt_intensity)
             enlarged_box3d = new_gt_box3d.copy()
             enlarged_box3d[4] += 0.5
@@ -224,13 +226,14 @@ class AugSceneGenerator(KittiDataset):
         extra_gt_boxes3d = np.concatenate(extra_gt_boxes3d_list, axis=0)
         # remove original points and add new points
         pts_rect = pts_rect[src_pts_flag == 1]
+        new_clusters = np.concatenate(new_clusters_list, axis=0)
         pts_intensity = pts_intensity[src_pts_flag == 1]
         new_pts_rect = np.concatenate(new_pts_list, axis=0)
         new_pts_intensity = np.concatenate(new_pts_intensity_list, axis=0)
         pts_rect = np.concatenate((pts_rect, new_pts_rect), axis=0)
         pts_intensity = np.concatenate((pts_intensity, new_pts_intensity), axis=0)
-
-        return True, pts_rect, pts_intensity, extra_gt_boxes3d, extra_gt_obj_list
+        clusters = np.concatenate((new_clusters, clusters), axis=0)
+        return True, pts_rect, pts_intensity, clusters, extra_gt_boxes3d, extra_gt_obj_list
 
     def aug_one_epoch_scene(self, base_id, data_save_dir, label_save_dir, split_list, log_fp=None):
         for idx, sample_id in enumerate(self.image_idx_list):
@@ -239,6 +242,7 @@ class AugSceneGenerator(KittiDataset):
 
             pts_lidar = self.get_lidar(sample_id)
             calib = self.get_calib(sample_id)
+            clusters = self.get_calib(sample_id)
             pts_rect = calib.lidar_to_rect(pts_lidar[:, 0:3])
             pts_img, pts_rect_depth = calib.rect_to_img(pts_rect)
             img_shape = self.get_image_shape(sample_id)
@@ -260,8 +264,8 @@ class AugSceneGenerator(KittiDataset):
                 continue
 
             # augment one scene
-            aug_flag, pts_rect, pts_intensity, extra_gt_boxes3d, extra_gt_obj_list = \
-                self.aug_one_scene(sample_id, pts_rect, pts_intensity, all_gt_boxes3d)
+            aug_flag, pts_rect, pts_intensity, clusters, extra_gt_boxes3d, extra_gt_obj_list = \
+                self.aug_one_scene(sample_id, pts_rect, pts_intensity, clusters, all_gt_boxes3d)
 
             # save augment result to file
             pts_info = np.concatenate((pts_rect, pts_intensity.reshape(-1, 1)), axis=1)

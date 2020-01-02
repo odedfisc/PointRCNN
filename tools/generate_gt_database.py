@@ -55,6 +55,7 @@ class GTDatabaseGenerator(KittiDataset):
 
             pts_lidar = self.get_lidar(sample_id)
             calib = self.get_calib(sample_id)
+            clusters = self.get_clusters(sample_id)
             pts_rect = calib.lidar_to_rect(pts_lidar[:, 0:3])
             pts_intensity = pts_lidar[:, 3]
 
@@ -75,10 +76,12 @@ class GTDatabaseGenerator(KittiDataset):
                 pt_mask_flag = (boxes_pts_mask_list[k].numpy() == 1)
                 cur_pts = pts_rect[pt_mask_flag].astype(np.float32)
                 cur_pts_intensity = pts_intensity[pt_mask_flag].astype(np.float32)
+                cur_clusters = clusters[pt_mask_flag].astype(np.uint8)
                 sample_dict = {'sample_id': sample_id,
                                'cls_type': obj_list[k].cls_type,
                                'gt_box3d': gt_boxes3d[k],
                                'points': cur_pts,
+                               'clusters': cur_clusters,
                                'intensity': cur_pts_intensity,
                                'obj': obj_list[k]}
                 gt_database.append(sample_dict)

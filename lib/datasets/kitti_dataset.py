@@ -52,6 +52,11 @@ class KittiDataset(torch_data.Dataset):
         assert os.path.exists(label_file)
         return kitti_utils.get_objects_from_label(label_file)
 
+    def get_clusters(self, idx):
+        clusters_file = os.path.join(self.lidar_dir, '%06d.txt' % idx)
+        assert os.path.exists(clusters_file)
+        return np.loadtxt(clusters_file)
+
     def get_road_plane(self, idx):
         plane_file = os.path.join(self.plane_dir, '%06d.txt' % idx)
         with open(plane_file, 'r') as f:

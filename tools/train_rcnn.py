@@ -182,10 +182,10 @@ if __name__ == "__main__":
 
     # copy important files to backup
     backup_dir = os.path.join(root_result_dir, 'backup_files')
-    os.makedirs(backup_dir, exist_ok=True)
-    os.system('cp *.py %s/' % backup_dir)
-    os.system('cp ../lib/net/*.py %s/' % backup_dir)
-    os.system('cp ../lib/datasets/kitti_rcnn_dataset.py %s/' % backup_dir)
+    # os.makedirs(backup_dir, exist_ok=True)
+    # os.system('cp *.py %s/' % backup_dir)
+    # os.system('cp ../lib/net/*.py %s/' % backup_dir)
+    # os.system('cp ../lib/datasets/kitti_rcnn_dataset.py %s/' % backup_dir)
 
     # tensorboard log
     tb_log = SummaryWriter(log_dir=os.path.join(root_result_dir, 'tensorboard'))
