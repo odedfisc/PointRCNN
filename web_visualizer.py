@@ -7,7 +7,7 @@ import webviewer
 from queue import Queue
 import asyncio
 import threading
-import webbrowser
+
 from webviewer import Frame, Box, Vec3, Color, Image
 
 from matplotlib.colors import ListedColormap
@@ -15,13 +15,13 @@ import matplotlib.colors as mcolors
 import matplotlib.cm as cm
 
 
-def pc_show(pc=None, boxes=None, images=None, ip=None):
+def pc_show(pc=None, boxes=None, images=None, colors=None, ip=None):
     if WebViewer.main_display is None:
         WebViewer.main_display = WebViewer(ip=ip)
         # if WebViewer.main_display.ip == 'localhost':
             # webbrowser.get('firefox').open_new_tab('localhost:8000')
 
-    WebViewer.main_display.display(pc, boxes, images)
+    WebViewer.main_display.display(pc, boxes, images, colors)
     return WebViewer.main_display
 
 
@@ -66,6 +66,7 @@ class WebViewer:
         self._builder = None
         self._points = None
         self._reflectivities = None
+        self._colors = None
         self._boxes = None
         self._images = None
         self._start_new_message()
@@ -79,16 +80,20 @@ class WebViewer:
         wvc.daemon = True
         wvc.start()
 
-    def display(self, pc, boxes, images):
+    def display(self, pc, boxes, images, colors):
         self._start_new_message()
         if pc is not None:
             if pc.shape[1] == 4:
                 pc_points = pc[:, :3]
                 reflectivity = pc[:, 3].astype(np.uint8)
-            elif pc.shape[1] == 3:
+            elif pc.shape[1] == 3 and colors is None:
                 pc_points = pc
                 reflectivity = np.zeros((pc.shape[0], )).astype(np.uint8)
-            self._build_pc_message(pc=pc_points, reflectivity=reflectivity)
+            elif colors is not None:
+                pc_points = pc
+                colors = colors
+                reflectivity = None
+            self._build_pc_message(pc=pc_points, reflectivity=reflectivity, colors=colors)
 
         if boxes is not None:
             translations = [box[:3] for box in boxes]
@@ -130,6 +135,9 @@ class WebViewer:
         if self._reflectivities:
             Frame.FrameAddReflectivities(self._builder, self._reflectivities)
 
+        if self._colors:
+            Frame.FrameAddOverridecolors(self._builder, self._colors)
+
         if self._boxes:
             Frame.FrameAddBoxes(self._builder, self._boxes)
 
@@ -143,20 +151,25 @@ class WebViewer:
         self._reflectivities = None
         self._boxes = None
         self._images = None
+        self._colors = None
         return buf
 
-    def _build_pc_message(self, pc: np.ndarray, reflectivity: np.ndarray):
+    def _build_pc_message(self, pc: np.ndarray, reflectivity: np.ndarray, colors: np.ndarray):
         """
         builds frame point cloud flatbuffer
         :param pc: point cloud as float np array [N, 3] (x, y, z)
         :param reflectivity: uint8 nd array [N, 1]
         """
-        assert len(pc) == len(reflectivity)
-        if reflectivity.dtype != np.uint8:
-            raise TypeError('reflectivity must be unit8')
 
         self._points = self._builder.CreateNumpyVector(pc.astype(np.float32).reshape([-1]))
-        self._reflectivities = self._builder.CreateNumpyVector(reflectivity)
+        if reflectivity is not None:
+            assert len(pc) == len(reflectivity)
+            if reflectivity.dtype != np.uint8:
+                raise TypeError('reflectivity must be unit8')
+
+            self._reflectivities = self._builder.CreateNumpyVector(reflectivity)
+        if colors is not None:
+            self._colors = self._builder.CreateNumpyVector(colors.astype(np.uint8).reshape([-1]))
 
     def _build_box_message(self, translations, rotations, sizes, colors, clss, names):
         assert len(translations) == len(rotations) == len(sizes) == len(clss) == len(names)
