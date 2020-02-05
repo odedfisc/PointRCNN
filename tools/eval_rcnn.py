@@ -36,7 +36,7 @@ parser.add_argument("--rpn_ckpt", type=str, default=None, help="specify the chec
 parser.add_argument("--rcnn_ckpt", type=str, default=None, help="specify the checkpoint of rcnn if trained separated")
 
 parser.add_argument('--batch_size', type=int, default=1, help='batch size for evaluation')
-parser.add_argument('--workers', type=int, default=4, help='number of workers for dataloader')
+parser.add_argument('--workers', type=int, default=14, help='number of workers for dataloader')
 parser.add_argument("--extra_tag", type=str, default='default', help="extra tag for multiple evaluation")
 parser.add_argument('--output_dir', type=str, default=None, help='specify an output directory if needed')
 parser.add_argument("--ckpt_dir", type=str, default=None, help="specify a ckpt directory to be evaluated if needed")
@@ -88,7 +88,7 @@ def save_kitti_format(sample_id, calib, bbox3d, kitti_output_dir, scores, img_sh
             beta = np.arctan2(z, x)
             alpha = -np.sign(beta) * np.pi / 2 + beta + ry
 
-            print('%s -1 -1 %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f' %
+            print('%s 0.0 0 %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f' %
                   (cfg.CLASSES, alpha, img_boxes[k, 0], img_boxes[k, 1], img_boxes[k, 2], img_boxes[k, 3],
                    bbox3d[k, 3], bbox3d[k, 4], bbox3d[k, 5], bbox3d[k, 0], bbox3d[k, 1], bbox3d[k, 2],
                    bbox3d[k, 6], scores[k]), file=f)
@@ -488,11 +488,11 @@ def eval_one_epoch_joint(model, dataloader, epoch_id, result_dir, logger):
     progress_bar = tqdm.tqdm(total=len(dataloader), leave=True, desc='eval')
     for data in dataloader:
         cnt += 1
-        sample_id, pts_rect, pts_features, pts_input = \
-            data['sample_id'], data['pts_rect'], data['pts_features'], data['pts_input']
+        sample_id, pts_rect, pts_features, pts_input, pts_clusters = \
+            data['sample_id'], data['pts_rect'], data['pts_features'], data['pts_input'], data['pts_clusters']
         batch_size = len(sample_id)
         inputs = torch.from_numpy(pts_input).cuda(non_blocking=True).float()
-        input_data = {'pts_input': inputs}
+        input_data = {'pts_input': inputs, 'pts_clusters': pts_clusters}
 
         # model inference
         ret_dict = model(input_data)
@@ -635,7 +635,7 @@ def eval_one_epoch_joint(model, dataloader, epoch_id, result_dir, logger):
             pts_lidar = calib.rect_to_lidar(pc)
             pc = np.concatenate((pts_lidar, ref), axis=1)
             ret_boxes = kitti_utils.boxes_to_lidar_coordinates(boxes, calib)
-            pc_show(pc, list(ret_boxes), [image])
+            # pc_show(pc, list(ret_boxes), [image])
             final_total += pred_boxes3d_selected.shape[0]
             image_shape = dataset.get_image_shape(cur_sample_id)
             save_kitti_format(cur_sample_id, calib, pred_boxes3d_selected, final_output_dir, scores_selected, image_shape)
@@ -767,9 +767,9 @@ def eval_single_ckpt(root_result_dir):
     # copy important files to backup
     backup_dir = os.path.join(root_result_dir, 'backup_files')
     os.makedirs(backup_dir, exist_ok=True)
-    os.system('cp *.py %s/' % backup_dir)
-    os.system('cp ../lib/net/*.py %s/' % backup_dir)
-    os.system('cp ../lib/datasets/kitti_rcnn_dataset.py %s/' % backup_dir)
+    # os.system('cp *.py %s/' % backup_dir)
+    # os.system('cp ../lib/net/*.py %s/' % backup_dir)
+    # os.system('cp ../lib/datasets/kitti_rcnn_dataset.py %s/' % backup_dir)
 
     # load checkpoint
     load_ckpt_based_on_args(model, logger)

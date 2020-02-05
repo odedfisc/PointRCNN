@@ -298,7 +298,7 @@ class KittiRCNNDataset(KittiDataset):
             else:
                 choice = np.arange(0, len(pts_rect), dtype=np.int32)
                 if self.npoints > len(pts_rect):
-                    extra_choice = np.random.choice(choice, len(pts_rect) - self.npoints, replace=False)
+                    extra_choice = np.random.choice(choice, self.npoints - len(pts_rect), replace=False)
                     choice = np.concatenate((choice, extra_choice), axis=0)
                 np.random.shuffle(choice)
 
@@ -310,7 +310,9 @@ class KittiRCNNDataset(KittiDataset):
             ret_pts_intensity = pts_intensity - 0.5
 
         pts_features = [ret_pts_intensity.reshape(-1, 1)]
+        ret_clusters = [ret_clusters.reshape(-1, 1)]
         ret_pts_features = np.concatenate(pts_features, axis=1) if pts_features.__len__() > 1 else pts_features[0]
+        ret_pts_clusters = np.concatenate(ret_clusters, axis=1) if ret_clusters.__len__() > 1 else ret_clusters[0]
 
         sample_info = {'sample_id': sample_id, 'random_select': self.random_select}
 
@@ -322,7 +324,7 @@ class KittiRCNNDataset(KittiDataset):
             sample_info['pts_input'] = pts_input
             sample_info['pts_rect'] = ret_pts_rect
             sample_info['pts_features'] = ret_pts_features
-            sample_info['clusters'] = ret_clusters
+            sample_info['pts_clusters'] = ret_pts_clusters
             return sample_info
 
         gt_obj_list = self.filtrate_objects(self.get_label(sample_id))
@@ -353,6 +355,7 @@ class KittiRCNNDataset(KittiDataset):
             sample_info['pts_rect'] = aug_pts_rect
             sample_info['pts_features'] = ret_pts_features
             sample_info['gt_boxes3d'] = aug_gt_boxes3d
+            sample_info['pts_clusters'] = ret_pts_clusters
             return sample_info
 
         # generate training labels
@@ -363,7 +366,7 @@ class KittiRCNNDataset(KittiDataset):
         sample_info['rpn_cls_label'] = rpn_cls_label
         sample_info['rpn_reg_label'] = rpn_reg_label
         sample_info['gt_boxes3d'] = aug_gt_boxes3d
-        sample_info['clusters'] = ret_clusters
+        sample_info['pts_clusters'] = ret_pts_clusters
         return sample_info
 
     @staticmethod
@@ -504,7 +507,7 @@ class KittiRCNNDataset(KittiDataset):
             extra_gt_obj_list.append(new_gt_obj)
 
         if new_pts_list.__len__() == 0:
-            return False, pts_rect, pts_intensity, None, None
+            return False, pts_rect, pts_intensity, clusters, None, None
 
         extra_gt_boxes3d = np.concatenate(extra_gt_boxes3d_list, axis=0)
         # remove original points and add new points

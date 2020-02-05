@@ -17,7 +17,7 @@ from lib.config import cfg, cfg_from_file, save_config_to_file
 import tools.train_utils.train_utils as train_utils
 from tools.train_utils.fastai_optim import OptimWrapper
 from tools.train_utils import learning_schedules_fastai as lsf
-
+import datetime
 
 parser = argparse.ArgumentParser(description="arg parser")
 parser.add_argument('--cfg_file', type=str, default='cfgs/default.yaml', help='specify the config for training')
@@ -25,7 +25,7 @@ parser.add_argument("--train_mode", type=str, default='rpn', required=True, help
 parser.add_argument("--batch_size", type=int, default=16, required=True, help="batch size for training")
 parser.add_argument("--epochs", type=int, default=200, required=True, help="Number of epochs to train for")
 
-parser.add_argument('--workers', type=int, default=8, help='number of workers for dataloader')
+parser.add_argument('--workers', type=int, default=12, help='number of workers for dataloader')
 parser.add_argument("--ckpt_save_interval", type=int, default=5, help="number of training epochs")
 parser.add_argument('--output_dir', type=str, default=None, help='specify an output directory if needed')
 parser.add_argument('--mgpus', action='store_true', default=False, help='whether to use multiple gpu')
@@ -59,7 +59,7 @@ def create_logger(log_file):
 
 
 def create_dataloader(logger):
-    DATA_PATH = os.path.join('../', 'data')
+    DATA_PATH = '/data'  # os.path.join('../', '/data')
 
     # create dataloader
     train_set = KittiRCNNDataset(root_dir=DATA_PATH, npoints=cfg.RPN.NUM_POINTS, split=cfg.TRAIN.SPLIT, mode='TRAIN',
@@ -181,14 +181,14 @@ if __name__ == "__main__":
     save_config_to_file(cfg, logger=logger)
 
     # copy important files to backup
-    backup_dir = os.path.join(root_result_dir, 'backup_files')
+    # backup_dir = os.path.join(root_result_dir, 'backup_files')
     # os.makedirs(backup_dir, exist_ok=True)
     # os.system('cp *.py %s/' % backup_dir)
     # os.system('cp ../lib/net/*.py %s/' % backup_dir)
     # os.system('cp ../lib/datasets/kitti_rcnn_dataset.py %s/' % backup_dir)
 
     # tensorboard log
-    tb_log = SummaryWriter(log_dir=os.path.join(root_result_dir, 'tensorboard'))
+    tb_log = SummaryWriter(log_dir=os.path.join(root_result_dir, 'tensorboard', datetime.datetime.now().strftime("%m%d%Y_%H%M%S")))
 
     # create dataloader & network & optimizer
     train_loader, test_loader = create_dataloader(logger)
@@ -213,7 +213,7 @@ if __name__ == "__main__":
     if args.rpn_ckpt is not None:
         pure_model = model.module if isinstance(model, torch.nn.DataParallel) else model
         total_keys = pure_model.state_dict().keys().__len__()
-        train_utils.load_part_ckpt(pure_model, filename=args.rpn_ckpt, logger=logger, total_keys=total_keys)
+        train_utils.load_part_ckpt(pure_model, selected_stage='rpn', filename=args.rpn_ckpt, logger=logger, total_keys=total_keys)
 
     if cfg.TRAIN.LR_WARMUP and cfg.TRAIN.OPTIMIZER != 'adam_onecycle':
         lr_warmup_scheduler = train_utils.CosineWarmupLR(optimizer, T_max=cfg.TRAIN.WARMUP_EPOCH * len(train_loader),
@@ -237,7 +237,7 @@ if __name__ == "__main__":
         eval_frequency=1,
         lr_warmup_scheduler=lr_warmup_scheduler,
         warmup_epoch=cfg.TRAIN.WARMUP_EPOCH,
-        grad_norm_clip=cfg.TRAIN.GRAD_NORM_CLIP
+        grad_norm_clip=cfg.TRAIN.GRAD_NORM_CLIP,
     )
 
     trainer.train(

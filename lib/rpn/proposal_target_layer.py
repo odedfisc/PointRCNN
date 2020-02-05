@@ -19,13 +19,14 @@ class ProposalTargetLayer(nn.Module):
         rpn_xyz, rpn_features = input_dict['rpn_xyz'], input_dict['rpn_features']
         if cfg.RCNN.USE_INTENSITY:
             pts_extra_input_list = [input_dict['rpn_intensity'].unsqueeze(dim=2),
-                                    input_dict['seg_mask'].unsqueeze(dim=2)]
+                                    input_dict['seg_mask']]
         else:
-            pts_extra_input_list = [input_dict['seg_mask'].unsqueeze(dim=2)]
+            pts_extra_input_list = [input_dict['seg_mask']]
 
         if cfg.RCNN.USE_DEPTH:
             pts_depth = input_dict['pts_depth'] / 70.0 - 0.5
             pts_extra_input_list.append(pts_depth.unsqueeze(dim=2))
+        print(pts_extra_input_list[0].shape, pts_extra_input_list[1].shape)
         pts_extra_input = torch.cat(pts_extra_input_list, dim=2)
 
         # point cloud pooling

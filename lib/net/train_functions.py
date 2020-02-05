@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -12,7 +13,7 @@ def model_joint_fn_decorator():
 
     def model_fn(model, data):
         if cfg.RPN.ENABLED:
-            pts_rect, pts_features, pts_input = data['pts_rect'], data['pts_features'], data['pts_input']
+            pts_rect, pts_features, pts_input, pts_clusters = data['pts_rect'], data['pts_features'], data['pts_input'], data['pts_clusters']
             gt_boxes3d = data['gt_boxes3d']
 
             if not cfg.RPN.FIXED:
@@ -21,8 +22,9 @@ def model_joint_fn_decorator():
                 rpn_reg_label = torch.from_numpy(rpn_reg_label).cuda(non_blocking=True).float()
 
             inputs = torch.from_numpy(pts_input).cuda(non_blocking=True).float()
+            pts_clusters = torch.from_numpy(pts_clusters).cuda(non_blocking=True).float()
             gt_boxes3d = torch.from_numpy(gt_boxes3d).cuda(non_blocking=True).float()
-            input_data = {'pts_input': inputs, 'gt_boxes3d': gt_boxes3d}
+            input_data = {'pts_input': inputs, 'gt_boxes3d': gt_boxes3d, 'pts_clusters': pts_clusters}
         else:
             input_data = {}
             for key, val in data.items():
@@ -37,6 +39,8 @@ def model_joint_fn_decorator():
         tb_dict = {}
         disp_dict = {}
         loss = 0
+        tb_dict['occupancy_rate'] = np.sum((data['pts_clusters'] > 0).astype(np.float32)) / \
+                                    (data['pts_clusters'].shape[1] * data['pts_clusters'].shape[0])
         if cfg.RPN.ENABLED and not cfg.RPN.FIXED:
             rpn_cls, rpn_reg = ret_dict['rpn_cls'], ret_dict['rpn_reg']
             rpn_loss = get_rpn_loss(model, rpn_cls, rpn_reg, rpn_cls_label, rpn_reg_label, tb_dict)

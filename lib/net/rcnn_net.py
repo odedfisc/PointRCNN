@@ -129,9 +129,9 @@ class RCNNNet(nn.Module):
                 batch_rois = input_data['roi_boxes3d']
                 if cfg.RCNN.USE_INTENSITY:
                     pts_extra_input_list = [input_data['rpn_intensity'].unsqueeze(dim=2),
-                                            input_data['seg_mask'].unsqueeze(dim=2)]
+                                            input_data['seg_mask']]
                 else:
-                    pts_extra_input_list = [input_data['seg_mask'].unsqueeze(dim=2)]
+                    pts_extra_input_list = [input_data['seg_mask']]
 
                 if cfg.RCNN.USE_DEPTH:
                     pts_depth = input_data['pts_depth'] / 70.0 - 0.5
@@ -174,7 +174,7 @@ class RCNNNet(nn.Module):
             merged_feature = self.merge_down_layer(merged_feature)
             l_xyz, l_features = [xyz], [merged_feature.squeeze(dim=3)]
         else:
-            l_xyz, l_features = [xyz], [features]
+            l_xyz, l_features = [xyz], [None]
 
         for i in range(len(self.SA_modules)):
             li_xyz, li_features = self.SA_modules[i](l_xyz[i], l_features[i])

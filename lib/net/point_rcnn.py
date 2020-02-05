@@ -1,3 +1,5 @@
+from web_visualizer import pc_show
+import numpy as np
 import torch
 import torch.nn as nn
 from lib.net.rpn import RPN
@@ -17,7 +19,12 @@ class PointRCNN(nn.Module):
         if cfg.RCNN.ENABLED:
             rcnn_input_channels = 128  # channels of rpn features
             if cfg.RCNN.BACKBONE == 'pointnet':
-                self.rcnn_net = RCNNNet(num_classes=num_classes, input_channels=rcnn_input_channels, use_xyz=use_xyz)
+                if cfg.RCNN.USE_RPN_FEATURES:
+                    self.rcnn_net = RCNNNet(num_classes=num_classes, input_channels=rcnn_input_channels,
+                                            use_xyz=use_xyz)
+                else:
+                    self.rcnn_net = RCNNNet(num_classes=num_classes, input_channels=0,
+                                            use_xyz=use_xyz)
             elif cfg.RCNN.BACKBONE == 'pointsift':
                 pass 
             else:
@@ -50,10 +57,11 @@ class PointRCNN(nn.Module):
                     output['rois'] = rois
                     output['roi_scores_raw'] = roi_scores_raw
                     output['seg_result'] = seg_mask
-
+                clusters_mask = (rpn_output['pts_clusters'] > 0).float()
                 rcnn_input_info = {'rpn_xyz': backbone_xyz,
                                    'rpn_features': backbone_features.permute((0, 2, 1)),
-                                   'seg_mask': seg_mask,
+                                   # 'seg_mask': seg_mask,
+                                   'seg_mask': clusters_mask,  # switch segmentation mask with clustering
                                    'roi_boxes3d': rois,
                                    'pts_depth': pts_depth}
                 if self.training:
@@ -66,5 +74,6 @@ class PointRCNN(nn.Module):
             output = self.rcnn_net(input_data)
         else:
             raise NotImplementedError
-
+        # pc_show(np.concatenate((input_data['pts_input'][0].data.cpu().numpy(),
+        #                         (input_data['pts_clusters'][0] != 0).astype(np.uint8) * 255), axis=1))
         return output

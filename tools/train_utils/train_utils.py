@@ -92,13 +92,18 @@ def load_checkpoint(model=None, optimizer=None, filename='checkpoint', logger=cu
     return it, epoch
 
 
-def load_part_ckpt(model, filename, logger=cur_logger, total_keys=-1):
+def load_part_ckpt(model, filename, selected_stage=None, logger=cur_logger, total_keys=-1):
     if os.path.isfile(filename):
         logger.info("==> Loading part model from checkpoint '{}'".format(filename))
         checkpoint = torch.load(filename)
         model_state = checkpoint['model_state']
-
-        update_model_state = {key: val for key, val in model_state.items() if key in model.state_dict()}
+        if selected_stage is None:
+            update_model_state = {key: val for key, val in model_state.items() if key in model.state_dict()}
+        elif selected_stage == 'rpn':
+            update_model_state = {key: val for key, val in model_state.items() if key in model.state_dict() and key.split('.')[0] == 'rpn'}
+        elif selected_stage == 'rcnn':
+            update_model_state = {key: val for key, val in model_state.items() if
+                                  key in model.state_dict() and key.split('.')[0] == 'rcnn'}
         state_dict = model.state_dict()
         state_dict.update(update_model_state)
         model.load_state_dict(state_dict)
