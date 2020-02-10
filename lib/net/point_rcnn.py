@@ -52,11 +52,15 @@ class PointRCNN(nn.Module):
                     clusters_mask = (input_data['pts_clusters'] > 0).float()
                     rpn_scores_raw = rpn_cls[:, :, 0]
                     rpn_scores_norm = torch.sigmoid(rpn_scores_raw)
-                    seg_mask = (rpn_scores_norm > cfg.RPN.SCORE_THRESH).float()
+                    seg_mask = (rpn_scores_norm > cfg.RPN.SCORE_THRESH).float().unsqueeze(dim=2)
                     pts_depth = torch.norm(backbone_xyz, p=2, dim=2)
 
                     # proposal layer
-                    rois, roi_scores_raw = self.rpn.proposal_layer(clusters_mask, rpn_reg, backbone_xyz)  # (B, M, 7)
+                    if cfg.RCNN.USE_CLUSTERING_MASK:
+                        rois, roi_scores_raw = self.rpn.proposal_layer(clusters_mask, rpn_reg, backbone_xyz)  # (B, M, 7)
+                        seg_mask = clusters_mask
+                    else:
+                        rois, roi_scores_raw = self.rpn.proposal_layer(rpn_scores_raw, rpn_reg, backbone_xyz)  # (B, M, 7)
 
                     output['rois'] = rois
                     output['roi_scores_raw'] = roi_scores_raw
@@ -64,8 +68,7 @@ class PointRCNN(nn.Module):
 
                 rcnn_input_info = {'rpn_xyz': backbone_xyz,
                                    'rpn_features': backbone_features.permute((0, 2, 1)),
-                                   # 'seg_mask': seg_mask,
-                                   'seg_mask': clusters_mask,  # switch segmentation mask with clustering
+                                   'seg_mask': seg_mask,  # switch segmentation mask with clustering
                                    'roi_boxes3d': rois,
                                    'pts_surface_features': input_data['pts_surface_features'],
                                    'pts_depth': pts_depth}
