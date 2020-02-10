@@ -56,6 +56,7 @@ class GTDatabaseGenerator(KittiDataset):
             pts_lidar = self.get_lidar(sample_id)
             calib = self.get_calib(sample_id)
             clusters = self.get_clusters(sample_id)
+            surface_features = self.get_surface_features(sample_id)
             pts_rect = calib.lidar_to_rect(pts_lidar[:, 0:3])
             pts_intensity = pts_lidar[:, 3]
 
@@ -77,11 +78,13 @@ class GTDatabaseGenerator(KittiDataset):
                 cur_pts = pts_rect[pt_mask_flag].astype(np.float32)
                 cur_pts_intensity = pts_intensity[pt_mask_flag].astype(np.float32)
                 cur_clusters = clusters[pt_mask_flag].astype(np.uint8)
+                cur_surface_features = surface_features[pt_mask_flag, :].astype(np.float32)
                 sample_dict = {'sample_id': sample_id,
                                'cls_type': obj_list[k].cls_type,
                                'gt_box3d': gt_boxes3d[k],
                                'points': cur_pts,
                                'clusters': cur_clusters,
+                               'surface_faetures': cur_surface_features,
                                'intensity': cur_pts_intensity,
                                'obj': obj_list[k]}
                 gt_database.append(sample_dict)
@@ -95,7 +98,7 @@ class GTDatabaseGenerator(KittiDataset):
 
 
 if __name__ == '__main__':
-    dataset = GTDatabaseGenerator(root_dir='../data/', split=args.split)
+    dataset = GTDatabaseGenerator(root_dir='/data', split=args.split)
     os.makedirs(args.save_dir, exist_ok=True)
 
     dataset.generate_gt_database()

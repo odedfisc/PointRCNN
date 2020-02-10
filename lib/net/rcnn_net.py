@@ -25,6 +25,10 @@ class RCNNNet(nn.Module):
             c_out = cfg.RCNN.XYZ_UP_LAYER[-1]
             self.merge_down_layer = pt_utils.SharedMLP([c_out * 2, c_out], bn=cfg.RCNN.USE_BN)
 
+        elif cfg.RCNN.USE_SURFACE_FEATURES:
+            self.rcnn_input_channel = 3 + int(cfg.RCNN.USE_INTENSITY) + int(cfg.RCNN.USE_MASK) + \
+                                      int(cfg.RCNN.USE_DEPTH) + 6
+
         for k in range(cfg.RCNN.SA_CONFIG.NPOINTS.__len__()):
             mlps = [channel_in] + cfg.RCNN.SA_CONFIG.MLPS[k]
 
@@ -173,6 +177,11 @@ class RCNNNet(nn.Module):
             merged_feature = torch.cat((xyz_feature, rpn_feature), dim=1)
             merged_feature = self.merge_down_layer(merged_feature)
             l_xyz, l_features = [xyz], [merged_feature.squeeze(dim=3)]
+
+        elif cfg.RCNN.USE_SURFACE_FEATURES:
+            xyz_input = pts_input[..., 0:self.rcnn_input_channel].transpose(1, 2) #.unsqueeze(dim=3)
+            l_xyz, l_features = [xyz], [xyz_input[:, 3:, ...].contiguous()]
+
         else:
             l_xyz, l_features = [xyz], [None]
 

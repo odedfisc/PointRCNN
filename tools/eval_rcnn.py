@@ -94,15 +94,17 @@ def save_kitti_format(sample_id, calib, bbox3d, kitti_output_dir, scores, img_sh
                    bbox3d[k, 6], scores[k]), file=f)
 
 
-def save_rpn_features(seg_result, rpn_scores_raw, pts_features, backbone_xyz, backbone_features, kitti_features_dir,
-                      sample_id):
+def save_rpn_features(seg_result, rpn_scores_raw, pts_features, pts_clusters, backbone_xyz, backbone_features,
+                      kitti_features_dir, sample_id):
     pts_intensity = pts_features[:, 0]
 
     output_file = os.path.join(kitti_features_dir, '%06d.npy' % sample_id)
     xyz_file = os.path.join(kitti_features_dir, '%06d_xyz.npy' % sample_id)
     seg_file = os.path.join(kitti_features_dir, '%06d_seg.npy' % sample_id)
+    pts_clusters_file = os.path.join(kitti_features_dir, '%06d_clusters.npy' % sample_id)
     intensity_file = os.path.join(kitti_features_dir, '%06d_intensity.npy' % sample_id)
     np.save(output_file, backbone_features)
+    np.save(pts_clusters_file, pts_clusters)
     np.save(xyz_file, backbone_xyz)
     np.save(seg_file, seg_result)
     np.save(intensity_file, pts_intensity)
@@ -135,8 +137,8 @@ def eval_one_epoch_rpn(model, dataloader, epoch_id, result_dir, logger):
     progress_bar = tqdm.tqdm(total=len(dataloader), leave=True, desc='eval')
 
     for data in dataloader:
-        sample_id_list, pts_rect, pts_features, pts_input = \
-            data['sample_id'], data['pts_rect'], data['pts_features'], data['pts_input']
+        sample_id_list, pts_rect, pts_features, pts_input, pts_clusters = \
+            data['sample_id'], data['pts_rect'], data['pts_features'], data['pts_input'], data['pts_clusters']
         sample_id = sample_id_list[0]
         cnt += len(sample_id_list)
 
@@ -152,7 +154,8 @@ def eval_one_epoch_rpn(model, dataloader, epoch_id, result_dir, logger):
                 gt_boxes3d = torch.from_numpy(gt_boxes3d).cuda(non_blocking=True).float()
 
         inputs = torch.from_numpy(pts_input).cuda(non_blocking=True).float()
-        input_data = {'pts_input': inputs}
+        pts_clusters = torch.from_numpy(pts_clusters).cuda(non_blocking=True).float()
+        input_data = {'pts_input': inputs, 'pts_clusters': pts_clusters}
 
         # model inference
         ret_dict = model(input_data)
@@ -164,7 +167,7 @@ def eval_one_epoch_rpn(model, dataloader, epoch_id, result_dir, logger):
         seg_result = (rpn_scores > cfg.RPN.SCORE_THRESH).long()
 
         # proposal layer
-        rois, roi_scores_raw = model.rpn.proposal_layer(rpn_scores_raw, rpn_reg, backbone_xyz)  # (B, M, 7)
+        rois, roi_scores_raw = model.rpn.proposal_layer((pts_clusters[..., 0] > 0.).float(), rpn_reg, backbone_xyz)  # (B, M, 7)
         batch_size = rois.shape[0]
 
         # calculate recall and save results to file
@@ -207,6 +210,7 @@ def eval_one_epoch_rpn(model, dataloader, epoch_id, result_dir, logger):
                 save_rpn_features(seg_result[bs_idx].float().cpu().numpy(),
                                   rpn_scores_raw[bs_idx].float().cpu().numpy(),
                                   pts_features[bs_idx],
+                                  pts_clusters[bs_idx].float().cpu().numpy(),
                                   backbone_xyz[bs_idx].cpu().numpy(),
                                   backbone_features[bs_idx].cpu().numpy().transpose(1, 0),
                                   kitti_features_dir, cur_sample_id)
@@ -492,6 +496,7 @@ def eval_one_epoch_joint(model, dataloader, epoch_id, result_dir, logger):
             data['sample_id'], data['pts_rect'], data['pts_features'], data['pts_input'], data['pts_clusters']
         batch_size = len(sample_id)
         inputs = torch.from_numpy(pts_input).cuda(non_blocking=True).float()
+        pts_clusters = torch.from_numpy(pts_clusters).cuda(non_blocking=True).float()
         input_data = {'pts_input': inputs, 'pts_clusters': pts_clusters}
 
         # model inference
@@ -856,7 +861,7 @@ def repeat_eval_ckpt(root_result_dir, ckpt_dir):
 
 def create_dataloader(logger):
     mode = 'TEST' if args.test else 'EVAL'
-    DATA_PATH = os.path.join('..', 'data')
+    DATA_PATH = '/data' # os.path.join('..', 'data')
 
     # create dataloader
     test_set = KittiRCNNDataset(root_dir=DATA_PATH, npoints=cfg.RPN.NUM_POINTS, split=cfg.TEST.SPLIT, mode=mode,

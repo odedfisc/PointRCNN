@@ -22,6 +22,10 @@ class PointRCNN(nn.Module):
                 if cfg.RCNN.USE_RPN_FEATURES:
                     self.rcnn_net = RCNNNet(num_classes=num_classes, input_channels=rcnn_input_channels,
                                             use_xyz=use_xyz)
+                elif cfg.RCNN.USE_SURFACE_FEATURES:
+                    self.rcnn_net = RCNNNet(num_classes=num_classes, input_channels=8,
+                                            use_xyz=use_xyz)
+
                 else:
                     self.rcnn_net = RCNNNet(num_classes=num_classes, input_channels=0,
                                             use_xyz=use_xyz)
@@ -45,24 +49,25 @@ class PointRCNN(nn.Module):
                 with torch.no_grad():
                     rpn_cls, rpn_reg = rpn_output['rpn_cls'], rpn_output['rpn_reg']
                     backbone_xyz, backbone_features = rpn_output['backbone_xyz'], rpn_output['backbone_features']
-
+                    clusters_mask = (input_data['pts_clusters'] > 0).float()
                     rpn_scores_raw = rpn_cls[:, :, 0]
                     rpn_scores_norm = torch.sigmoid(rpn_scores_raw)
                     seg_mask = (rpn_scores_norm > cfg.RPN.SCORE_THRESH).float()
                     pts_depth = torch.norm(backbone_xyz, p=2, dim=2)
 
                     # proposal layer
-                    rois, roi_scores_raw = self.rpn.proposal_layer(rpn_scores_raw, rpn_reg, backbone_xyz)  # (B, M, 7)
+                    rois, roi_scores_raw = self.rpn.proposal_layer(clusters_mask, rpn_reg, backbone_xyz)  # (B, M, 7)
 
                     output['rois'] = rois
                     output['roi_scores_raw'] = roi_scores_raw
                     output['seg_result'] = seg_mask
-                clusters_mask = (rpn_output['pts_clusters'] > 0).float()
+
                 rcnn_input_info = {'rpn_xyz': backbone_xyz,
                                    'rpn_features': backbone_features.permute((0, 2, 1)),
                                    # 'seg_mask': seg_mask,
                                    'seg_mask': clusters_mask,  # switch segmentation mask with clustering
                                    'roi_boxes3d': rois,
+                                   'pts_surface_features': input_data['pts_surface_features'],
                                    'pts_depth': pts_depth}
                 if self.training:
                     rcnn_input_info['gt_boxes3d'] = input_data['gt_boxes3d']

@@ -13,7 +13,8 @@ def model_joint_fn_decorator():
 
     def model_fn(model, data):
         if cfg.RPN.ENABLED:
-            pts_rect, pts_features, pts_input, pts_clusters = data['pts_rect'], data['pts_features'], data['pts_input'], data['pts_clusters']
+            pts_rect, pts_features, pts_input, pts_clusters, pts_surface_features = \
+                data['pts_rect'], data['pts_features'], data['pts_input'], data['pts_clusters'], data['pts_surface_features']
             gt_boxes3d = data['gt_boxes3d']
 
             if not cfg.RPN.FIXED:
@@ -23,8 +24,10 @@ def model_joint_fn_decorator():
 
             inputs = torch.from_numpy(pts_input).cuda(non_blocking=True).float()
             pts_clusters = torch.from_numpy(pts_clusters).cuda(non_blocking=True).float()
+            pts_surface_features = torch.from_numpy(pts_surface_features).cuda(non_blocking=True).float()
             gt_boxes3d = torch.from_numpy(gt_boxes3d).cuda(non_blocking=True).float()
-            input_data = {'pts_input': inputs, 'gt_boxes3d': gt_boxes3d, 'pts_clusters': pts_clusters}
+            input_data = {'pts_input': inputs, 'gt_boxes3d': gt_boxes3d,
+                          'pts_clusters': pts_clusters, 'pts_surface_features': pts_surface_features}
         else:
             input_data = {}
             for key, val in data.items():

@@ -15,7 +15,7 @@ np.random.seed(1024)
 parser = argparse.ArgumentParser()
 parser.add_argument('--mode', type=str, default='generator')
 parser.add_argument('--class_name', type=str, default='Car')
-parser.add_argument('--save_dir', type=str, default='./../data/KITTI/aug_scene/training')
+parser.add_argument('--save_dir', type=str, default='/data/KITTI/aug_scene/training')
 parser.add_argument('--split', type=str, default='train')
 parser.add_argument('--gt_database_dir', type=str, default='gt_database/train_gt_database_3level_Car.pkl')
 parser.add_argument('--include_similar', action='store_true', default=False)
@@ -224,6 +224,7 @@ class AugSceneGenerator(KittiDataset):
             return False, pts_rect, pts_intensity, None, None
 
         extra_gt_boxes3d = np.concatenate(extra_gt_boxes3d_list, axis=0)
+
         # remove original points and add new points
         pts_rect = pts_rect[src_pts_flag == 1]
         new_clusters = np.concatenate(new_clusters_list, axis=0)
@@ -242,7 +243,7 @@ class AugSceneGenerator(KittiDataset):
 
             pts_lidar = self.get_lidar(sample_id)
             calib = self.get_calib(sample_id)
-            clusters = self.get_calib(sample_id)
+            clusters = self.get_clusters(sample_id)
             pts_rect = calib.lidar_to_rect(pts_lidar[:, 0:3])
             pts_img, pts_rect_depth = calib.rect_to_img(pts_rect)
             img_shape = self.get_image_shape(sample_id)
@@ -304,7 +305,7 @@ class AugSceneGenerator(KittiDataset):
                 if idx != len(split_list) - 1:
                     print('', file=f)
         log_print('Save split file to %s' % split_file, fp=log_fp)
-        target_dir = '../data/KITTI/ImageSets/'
+        target_dir = '/data/KITTI/ImageSets/' 
         os.system('cp %s %s' % (split_file, target_dir))
         log_print('Copy split file from %s to %s' % (split_file, target_dir), fp=log_fp)
 
@@ -319,7 +320,7 @@ if __name__ == '__main__':
         gt_database = pickle.load(open(args.gt_database_dir, 'rb'))
         log_print('Loading gt_database(%d) from %s' % (gt_database.__len__(), args.gt_database_dir), fp=log_fp)
 
-        dataset = AugSceneGenerator(root_dir='../data', gt_database=gt_database, split=args.split)
+        dataset = AugSceneGenerator(root_dir='/data', gt_database=gt_database, split=args.split)
         dataset.generate_aug_scene(aug_times=args.aug_times, log_fp=log_fp)
 
         log_fp.close()

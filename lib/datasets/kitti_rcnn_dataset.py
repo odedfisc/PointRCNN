@@ -140,6 +140,7 @@ class KittiRCNNDataset(KittiDataset):
         rpn_feature_file = os.path.join(rpn_feature_dir, '%06d.npy' % idx)
         rpn_xyz_file = os.path.join(rpn_feature_dir, '%06d_xyz.npy' % idx)
         rpn_intensity_file = os.path.join(rpn_feature_dir, '%06d_intensity.npy' % idx)
+        clusters_file = os.path.join(rpn_feature_dir, '%06d_clusters.npy' % idx)
         if cfg.RCNN.USE_SEG_SCORE:
             rpn_seg_file = os.path.join(rpn_feature_dir, '%06d_rawscore.npy' % idx)
             rpn_seg_score = np.load(rpn_seg_file).reshape(-1)
@@ -147,7 +148,8 @@ class KittiRCNNDataset(KittiDataset):
         else:
             rpn_seg_file = os.path.join(rpn_feature_dir, '%06d_seg.npy' % idx)
             rpn_seg_score = np.load(rpn_seg_file).reshape(-1)
-        return np.load(rpn_xyz_file), np.load(rpn_feature_file), np.load(rpn_intensity_file).reshape(-1), rpn_seg_score
+        return np.load(rpn_xyz_file), np.load(rpn_feature_file), np.load(rpn_intensity_file).reshape(-1), \
+               np.load(clusters_file), rpn_seg_score
 
     def filtrate_objects(self, obj_list):
         """
@@ -251,6 +253,7 @@ class KittiRCNNDataset(KittiDataset):
             img_shape = self.get_image_shape(sample_id)
             pts_lidar = self.get_lidar(sample_id)
             clusters = self.get_clusters(sample_id)
+            surface_features = self.get_surface_features(sample_id)
 
             # get valid point (projected points should be in image)
             pts_rect = calib.lidar_to_rect(pts_lidar[:, 0:3])
@@ -271,6 +274,7 @@ class KittiRCNNDataset(KittiDataset):
         pts_rect = pts_rect[pts_valid_flag][:, 0:3]
         pts_intensity = pts_intensity[pts_valid_flag]
         clusters = clusters[pts_valid_flag]
+        surface_features = surface_features[pts_valid_flag]
 
         if cfg.GT_AUG_ENABLED and self.mode == 'TRAIN':
             # all labels for checking overlapping
@@ -280,8 +284,8 @@ class KittiRCNNDataset(KittiDataset):
             gt_aug_flag = False
             if np.random.rand() < cfg.GT_AUG_APPLY_PROB:
                 # augment one scene
-                gt_aug_flag, pts_rect, pts_intensity, clusters, extra_gt_boxes3d, extra_gt_obj_list = \
-                    self.apply_gt_aug_to_one_scene(sample_id, pts_rect, pts_intensity, clusters, all_gt_boxes3d)
+                gt_aug_flag, pts_rect, pts_intensity, clusters, surface_features, extra_gt_boxes3d, extra_gt_obj_list = \
+                    self.apply_gt_aug_to_one_scene(sample_id, pts_rect, pts_intensity, clusters, surface_features, all_gt_boxes3d)
 
         # generate inputs
         if self.mode == 'TRAIN' or self.random_select:
@@ -305,6 +309,7 @@ class KittiRCNNDataset(KittiDataset):
             ret_pts_rect = pts_rect[choice, :]
             ret_pts_intensity = pts_intensity[choice] - 0.5  # translate intensity to [-0.5, 0.5]
             ret_clusters = clusters[choice]
+            ret_surface_features = surface_features[choice, :]
         else:
             ret_pts_rect = pts_rect
             ret_pts_intensity = pts_intensity - 0.5
@@ -325,6 +330,7 @@ class KittiRCNNDataset(KittiDataset):
             sample_info['pts_rect'] = ret_pts_rect
             sample_info['pts_features'] = ret_pts_features
             sample_info['pts_clusters'] = ret_pts_clusters
+            sample_info['pts_surface_features'] = ret_surface_features
             return sample_info
 
         gt_obj_list = self.filtrate_objects(self.get_label(sample_id))
@@ -356,6 +362,7 @@ class KittiRCNNDataset(KittiDataset):
             sample_info['pts_features'] = ret_pts_features
             sample_info['gt_boxes3d'] = aug_gt_boxes3d
             sample_info['pts_clusters'] = ret_pts_clusters
+            sample_info['pts_surface_features'] = ret_surface_features
             return sample_info
 
         # generate training labels
@@ -367,6 +374,7 @@ class KittiRCNNDataset(KittiDataset):
         sample_info['rpn_reg_label'] = rpn_reg_label
         sample_info['gt_boxes3d'] = aug_gt_boxes3d
         sample_info['pts_clusters'] = ret_pts_clusters
+        sample_info['pts_surface_features'] = ret_surface_features
         return sample_info
 
     @staticmethod
@@ -413,7 +421,7 @@ class KittiRCNNDataset(KittiDataset):
 
         return box3d
 
-    def apply_gt_aug_to_one_scene(self, sample_id, pts_rect, pts_intensity, clusters, all_gt_boxes3d):
+    def apply_gt_aug_to_one_scene(self, sample_id, pts_rect, pts_intensity, clusters, surface_features, all_gt_boxes3d):
         """
         :param pts_rect: (N, 3)
         :param all_gt_boxex3d: (M2, 7)
@@ -435,7 +443,7 @@ class KittiRCNNDataset(KittiDataset):
 
         extra_gt_obj_list = []
         extra_gt_boxes3d_list = []
-        new_pts_list, new_pts_intensity_list, new_pts_clustering_list = [], [], []
+        new_pts_list, new_pts_intensity_list, new_pts_clustering_list, new_surface_features_list = [], [], [], []
         src_pts_flag = np.ones(pts_rect.shape[0], dtype=np.int32)
 
         road_plane = self.get_road_plane(sample_id)
@@ -464,6 +472,7 @@ class KittiRCNNDataset(KittiDataset):
             new_gt_points = new_gt_dict['points'].copy()
             new_gt_intensity = new_gt_dict['intensity'].copy()
             new_gt_clusters = new_gt_dict['clusters'].copy()
+            new_gt_surface_features = new_gt_dict['surface_faetures'].copy()
             new_gt_obj = new_gt_dict['obj']
             center = new_gt_box3d[0:3]
             if cfg.PC_REDUCE_BY_RANGE and (self.check_pc_range(center) is False):
@@ -501,26 +510,31 @@ class KittiRCNNDataset(KittiDataset):
             new_pts_list.append(new_gt_points)
             new_pts_intensity_list.append(new_gt_intensity)
             new_pts_clustering_list.append(new_gt_clusters)
+            new_surface_features_list.append(new_gt_surface_features)
             cur_gt_boxes3d = np.concatenate((cur_gt_boxes3d, new_enlarged_box3d.reshape(1, 7)), axis=0)
             cur_gt_corners = np.concatenate((cur_gt_corners, new_corners), axis=0)
             extra_gt_boxes3d_list.append(new_gt_box3d.reshape(1, 7))
             extra_gt_obj_list.append(new_gt_obj)
 
         if new_pts_list.__len__() == 0:
-            return False, pts_rect, pts_intensity, clusters, None, None
+            return False, pts_rect, pts_intensity, clusters, surface_features, None, None
 
         extra_gt_boxes3d = np.concatenate(extra_gt_boxes3d_list, axis=0)
+
         # remove original points and add new points
         pts_rect = pts_rect[src_pts_flag == 1]
         pts_intensity = pts_intensity[src_pts_flag == 1]
         clusters = clusters[src_pts_flag == 1]
+        surface_features = surface_features[src_pts_flag == 1, :]
         new_pts_rect = np.concatenate(new_pts_list, axis=0)
         new_pts_intensity = np.concatenate(new_pts_intensity_list, axis=0)
         new_pts_clustering = np.concatenate(new_pts_clustering_list, axis=0)
+        new_pts_surface_features = np.concatenate(new_surface_features_list, axis=0)
         pts_rect = np.concatenate((pts_rect, new_pts_rect), axis=0)
         pts_intensity = np.concatenate((pts_intensity, new_pts_intensity), axis=0)
         clusters = np.concatenate((clusters, new_pts_clustering), axis=0)
-        return True, pts_rect, pts_intensity, clusters, extra_gt_boxes3d, extra_gt_obj_list
+        surface_features = np.concatenate((surface_features, new_pts_surface_features), axis=0)
+        return True, pts_rect, pts_intensity, clusters, surface_features, extra_gt_boxes3d, extra_gt_obj_list
 
     def data_augmentation(self, aug_pts_rect, aug_gt_boxes3d, gt_alpha, sample_id=None, mustaug=False, stage=1):
         """
@@ -804,7 +818,8 @@ class KittiRCNNDataset(KittiDataset):
         proposal_file = os.path.join(self.rcnn_eval_roi_dir, '%06d.txt' % sample_id)
         roi_obj_list = kitti_utils.get_objects_from_label(proposal_file)
 
-        rpn_xyz, rpn_features, rpn_intensity, seg_mask = self.get_rpn_features(self.rcnn_eval_feature_dir, sample_id)
+        rpn_xyz, rpn_features, rpn_intensity, pts_clusters, seg_mask = \
+            self.get_rpn_features(self.rcnn_eval_feature_dir, sample_id)
         pts_rect, pts_rpn_features, pts_intensity = rpn_xyz, rpn_features, rpn_intensity
 
         roi_box3d_list, roi_scores = [], []

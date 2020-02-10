@@ -42,7 +42,10 @@ class ProposalLayer(nn.Module):
             proposals_single = proposals[k]
             order_single = sorted_idxs[k]
 
-            if cfg.TEST.RPN_DISTANCE_BASED_PROPOSE:
+            if cfg.RCNN.USE_CLUSTERING_MASK:
+                scores_single, proposals_single = self.mask_based_proposal(rpn_scores[k].squeeze(dim=1), proposals_single)
+
+            elif cfg.TEST.RPN_DISTANCE_BASED_PROPOSE:
                 scores_single, proposals_single = self.distance_based_proposal(scores_single, proposals_single,
                                                                                order_single)
             else:
@@ -132,6 +135,30 @@ class ProposalLayer(nn.Module):
         # pre nms top K
         cur_scores = scores_ordered[:cfg[self.mode].RPN_PRE_NMS_TOP_N]
         cur_proposals = proposals_ordered[:cfg[self.mode].RPN_PRE_NMS_TOP_N]
+
+        boxes_bev = kitti_utils.boxes3d_to_bev_torch(cur_proposals)
+        keep_idx = iou3d_utils.nms_gpu(boxes_bev, cur_scores, cfg[self.mode].RPN_NMS_THRESH)
+
+        # Fetch post nms top k
+        keep_idx = keep_idx[:cfg[self.mode].RPN_POST_NMS_TOP_N]
+
+        return cur_scores[keep_idx], cur_proposals[keep_idx]
+
+    def mask_based_proposal(self, scores, proposals):
+        """
+         propose rois in two area based on the distance
+        :param scores: (N) - binary vector
+        :param proposals: (N, 7)
+        :param order: (N)
+        """
+        # sort by score
+        scores_ordered = scores[scores.bool()]
+        # proposals_ordered = proposals[scores.squeeze(dim=1).bool(), :]
+        proposals_ordered = proposals[scores.bool(), :]
+
+        # pre nms top K
+        cur_scores = scores_ordered #[:cfg[self.mode].RPN_PRE_NMS_TOP_N]
+        cur_proposals = proposals_ordered #[:cfg[self.mode].RPN_PRE_NMS_TOP_N]
 
         boxes_bev = kitti_utils.boxes3d_to_bev_torch(cur_proposals)
         keep_idx = iou3d_utils.nms_gpu(boxes_bev, cur_scores, cfg[self.mode].RPN_NMS_THRESH)

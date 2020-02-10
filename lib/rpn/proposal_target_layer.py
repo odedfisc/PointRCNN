@@ -20,13 +20,17 @@ class ProposalTargetLayer(nn.Module):
         if cfg.RCNN.USE_INTENSITY:
             pts_extra_input_list = [input_dict['rpn_intensity'].unsqueeze(dim=2),
                                     input_dict['seg_mask']]
+
+        elif cfg.RCNN.USE_SURFACE_FEATURES:
+            pts_extra_input_list = [input_dict['seg_mask'], input_dict['pts_surface_features']]
+
         else:
             pts_extra_input_list = [input_dict['seg_mask']]
 
         if cfg.RCNN.USE_DEPTH:
             pts_depth = input_dict['pts_depth'] / 70.0 - 0.5
             pts_extra_input_list.append(pts_depth.unsqueeze(dim=2))
-        print(pts_extra_input_list[0].shape, pts_extra_input_list[1].shape)
+
         pts_extra_input = torch.cat(pts_extra_input_list, dim=2)
 
         # point cloud pooling
@@ -63,7 +67,11 @@ class ProposalTargetLayer(nn.Module):
         # classification label
         batch_cls_label = (batch_roi_iou > cfg.RCNN.CLS_FG_THRESH).long()
         invalid_mask = (batch_roi_iou > cfg.RCNN.CLS_BG_THRESH) & (batch_roi_iou < cfg.RCNN.CLS_FG_THRESH)
+
+        # empty rois
         batch_cls_label[valid_mask == 0] = -1
+
+        # roi above background threshold and under foreground threshold
         batch_cls_label[invalid_mask > 0] = -1
 
         output_dict = {'sampled_pts': sampled_pts.view(-1, cfg.RCNN.NUM_POINTS, 3),

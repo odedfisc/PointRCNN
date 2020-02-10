@@ -3,7 +3,7 @@ CLASSES: Car
 INCLUDE_SIMILAR_TYPE: True
 
 # config of augmentation
-AUG_DATA: False
+AUG_DATA: True
 AUG_METHOD_LIST: ['rotation', 'scaling', 'flip']
 AUG_METHOD_PROB: [1.0, 1.0, 0.5]
 AUG_ROT_RANGE: 18
@@ -72,7 +72,9 @@ RCNN:
     REG_AUG_METHOD: multiple  # multiple, single, normal
     ROI_FG_AUG_TIMES: 10
 
-    USE_RPN_FEATURES: True
+    USE_SURFACE_FEATURES: True
+    USE_CLUSTERING_MASK: True
+    USE_RPN_FEATURES: False
     USE_MASK: True
     MASK_TYPE: seg
     USE_INTENSITY: False
@@ -128,7 +130,7 @@ RCNN:
 # general training config
 TRAIN:
     SPLIT: train
-    VAL_SPLIT: smallval
+    VAL_SPLIT: val
 
     LR: 0.002
     LR_CLIP: 0.00001

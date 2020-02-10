@@ -81,7 +81,9 @@ __C.RCNN = edict()
 __C.RCNN.ENABLED = False
 
 # config of input
+__C.RCNN.USE_CLUSTERING_MASK = True
 __C.RCNN.USE_RPN_FEATURES = True
+__C.RCNN.USE_SURFACE_FEATURES = False
 __C.RCNN.USE_MASK = True
 __C.RCNN.MASK_TYPE = 'seg'
 __C.RCNN.USE_INTENSITY = False
