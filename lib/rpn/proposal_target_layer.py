@@ -105,8 +105,13 @@ class ProposalTargetLayer(nn.Module):
             cur_roi, cur_gt = roi_boxes3d[idx], gt_boxes3d[idx]
 
             k = cur_gt.__len__() - 1
+
+            if k == -1:
+                continue
+
             while cur_gt[k].sum() == 0:
                 k -= 1
+
             cur_gt = cur_gt[:k + 1]
 
             # include gt boxes in the candidate rois

@@ -1,4 +1,3 @@
-from web_visualizer import pc_show
 import numpy as np
 import torch
 import torch.nn as nn
@@ -82,6 +81,5 @@ class PointRCNN(nn.Module):
             output = self.rcnn_net(input_data)
         else:
             raise NotImplementedError
-        # pc_show(np.concatenate((input_data['pts_input'][0].data.cpu().numpy(),
-        #                         (input_data['pts_clusters'][0] != 0).astype(np.uint8) * 255), axis=1))
+
         return output

@@ -21,8 +21,8 @@ import glob
 import time
 from tensorboardX import SummaryWriter
 import tqdm
+from innoviz_webviewer.python_wrapper.web_visualizer import pc_show, GraphicBox
 
-from web_visualizer import pc_show
 np.random.seed(1024)  # set the same seed
 
 parser = argparse.ArgumentParser(description="arg parser")
@@ -492,12 +492,12 @@ def eval_one_epoch_joint(model, dataloader, epoch_id, result_dir, logger):
     progress_bar = tqdm.tqdm(total=len(dataloader), leave=True, desc='eval')
     for data in dataloader:
         cnt += 1
-        sample_id, pts_rect, pts_features, pts_input, pts_clusters = \
-            data['sample_id'], data['pts_rect'], data['pts_features'], data['pts_input'], data['pts_clusters']
+        sample_id, pts_rect, pts_features, pts_input, pts_clusters, pts_surface_features = \
+            data['sample_id'], data['pts_rect'], data['pts_features'], data['pts_input'], data['pts_clusters'], data['pts_surface_features']
         batch_size = len(sample_id)
         inputs = torch.from_numpy(pts_input).cuda(non_blocking=True).float()
         pts_clusters = torch.from_numpy(pts_clusters).cuda(non_blocking=True).float()
-        input_data = {'pts_input': inputs, 'pts_clusters': pts_clusters}
+        input_data = {'pts_input': inputs, 'pts_clusters': pts_clusters, 'pts_surface_features': pts_surface_features}
 
         # model inference
         ret_dict = model(input_data)
@@ -638,9 +638,12 @@ def eval_one_epoch_joint(model, dataloader, epoch_id, result_dir, logger):
             ref = (data['pts_features'][0, :, 0][:, None] + 0.5) * 255
             pc = data['pts_input'][0]
             pts_lidar = calib.rect_to_lidar(pc)
-            pc = np.concatenate((pts_lidar, ref), axis=1)
             ret_boxes = kitti_utils.boxes_to_lidar_coordinates(boxes, calib)
-            # pc_show(pc, list(ret_boxes), [image])
+            ret_graphic_boxes = [GraphicBox(name='Car', translation=box[:3],
+                                            rotation=np.array([0, 0, box[6] + np.pi / 2]),
+                                            size=box[3:6],
+                                            score=1 / (1 + np.exp(-box[-1])), cls=1) for box in ret_boxes]
+            pc_show(pts_lidar, ref.astype(np.uint8), ret_graphic_boxes, [image])
             final_total += pred_boxes3d_selected.shape[0]
             image_shape = dataset.get_image_shape(cur_sample_id)
             save_kitti_format(cur_sample_id, calib, pred_boxes3d_selected, final_output_dir, scores_selected, image_shape)

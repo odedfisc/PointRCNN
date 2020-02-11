@@ -143,7 +143,7 @@ class Trainer(object):
         return loss.item(), tb_dict, disp_dict
 
     def eval_epoch(self, d_loader):
-        self.model.eval()
+        # self.model.eval()
 
         eval_dict = {}
         total_loss = count = 0.0
