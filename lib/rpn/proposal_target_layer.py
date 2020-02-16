@@ -61,7 +61,7 @@ class ProposalTargetLayer(nn.Module):
                                                                       roi_ry[k]).squeeze(dim=1)
 
         # regression valid mask
-        valid_mask = (pooled_empty_flag == 0)
+        valid_mask = (pooled_empty_flag == 0) 
         reg_valid_mask = ((batch_roi_iou > cfg.RCNN.REG_FG_THRESH) & valid_mask).long()
 
         # classification label

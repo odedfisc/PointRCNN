@@ -6,10 +6,12 @@ from lib.rpn.proposal_target_layer import ProposalTargetLayer
 import pointnet2_lib.pointnet2.pytorch_utils as pt_utils
 import lib.utils.loss_utils as loss_utils
 from lib.config import cfg
+import numpy as np
 
 import lib.utils.kitti_utils as kitti_utils
 import lib.utils.roipool3d.roipool3d_utils as roipool3d_utils
 
+from innoviz_webviewer.python_wrapper.web_visualizer import pc_show, GraphicBox
 
 class RCNNNet(nn.Module):
     def __init__(self, num_classes, input_channels=0, use_xyz=True):
@@ -144,16 +146,38 @@ class RCNNNet(nn.Module):
 
                 pts_feature = torch.cat((pts_extra_input, rpn_features), dim=2)
                 pooled_features, pooled_empty_flag = \
-                        roipool3d_utils.roipool3d_gpu(rpn_xyz, pts_feature, batch_rois, cfg.RCNN.POOL_EXTRA_WIDTH,
-                                                      sampled_pt_num=cfg.RCNN.NUM_POINTS)
+                    roipool3d_utils.roipool3d_gpu(rpn_xyz, pts_feature, batch_rois, cfg.RCNN.POOL_EXTRA_WIDTH,
+                                                  sampled_pt_num=cfg.RCNN.NUM_POINTS)
 
                 # canonical transformation
                 batch_size = batch_rois.shape[0]
                 roi_center = batch_rois[:, :, 0:3]
                 pooled_features[:, :, :, 0:3] -= roi_center.unsqueeze(dim=2)
+                # pc_show(pooled_features[0, 0, :, 0:3].cpu().numpy())
+
                 for k in range(batch_size):
+                    eig_val, eig_vec = torch.symeig(
+                        torch.matmul(pooled_features[k, :, :, [0, 2]].transpose(2, 1),
+                                     pooled_features[k, :, :, [0, 2]]),
+                        eigenvectors=True)
+                    # tmp_pc = pooled_features[k, 0, :, 0:3].cpu().numpy()
+                    # pc_show(tmp_pc[:, [2, 0, 1]] * np.array([1, -1, -1]))
+                    # pooled_features[k, :, :, 0:3] = kitti_utils.rotate_pc_along_y_torch(pooled_features[k, :, :, 0:3],
+                    #                                             torch.atan2(eig_vec[:, 0, 0], eig_vec[:, 0, 1]))
                     pooled_features[k, :, :, 0:3] = kitti_utils.rotate_pc_along_y_torch(pooled_features[k, :, :, 0:3],
                                                                                         batch_rois[k, :, 6])
+                    # tmp_pc = pooled_features[k, 0, :, 0:3].cpu().numpy()
+                    # pc_show(tmp_pc[:, [2, 0, 1]] * np.array([1, -1, -1]))
+
+                if cfg.RCNN.USE_CLUSTER_MOMENTS:
+                    pooled_features_square = pooled_features[:, :, :, 0:3] * pooled_features[:, :, :, 0:3]
+                    pooled_features_xy = pooled_features[:, :, :, 0] * pooled_features[:, :, :, 1]
+                    pooled_features_xz = pooled_features[:, :, :, 0] * pooled_features[:, :, :, 2]
+                    pooled_features_yz = pooled_features[:, :, :, 1] * pooled_features[:, :, :, 2]
+                    pooled_features = torch.cat((pooled_features, pooled_features_square,
+                                                 pooled_features_xy.unsqueeze(dim=3),
+                                                 pooled_features_xz.unsqueeze(dim=3),
+                                                 pooled_features_yz.unsqueeze(dim=3)), dim=3)
 
                 pts_input = pooled_features.view(-1, pooled_features.shape[2], pooled_features.shape[3])
         else:
@@ -179,8 +203,13 @@ class RCNNNet(nn.Module):
             l_xyz, l_features = [xyz], [merged_feature.squeeze(dim=3)]
 
         elif cfg.RCNN.USE_SURFACE_FEATURES:
-            xyz_input = pts_input[..., 0:self.rcnn_input_channel].transpose(1, 2) #.unsqueeze(dim=3)
-            l_xyz, l_features = [xyz], [xyz_input[:, 3:, ...].contiguous()]
+            xyz_input = pts_input[..., 0: self.rcnn_input_channel].transpose(1, 2) #.unsqueeze(dim=3)
+            if cfg.RCNN.USE_CLUSTER_MOMENTS:
+                moments_features = pts_input[..., -6:].transpose(1, 2)
+                hand_crafted_features = torch.cat((xyz_input[:, 3:, ...], moments_features), dim=1).contiguous()
+                l_xyz, l_features = [xyz], [hand_crafted_features.contiguous()]
+            else:
+                l_xyz, l_features = [xyz], [xyz_input[:, 3:, ...].contiguous()]
 
         else:
             l_xyz, l_features = [xyz], [None]

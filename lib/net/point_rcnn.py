@@ -5,6 +5,7 @@ from lib.net.rpn import RPN
 from lib.net.rcnn_net import RCNNNet
 from lib.config import cfg
 
+from plot_utils import map_clusters_to_colors
 
 class PointRCNN(nn.Module):
     def __init__(self, num_classes, use_xyz=True, mode='TRAIN'):
@@ -22,12 +23,12 @@ class PointRCNN(nn.Module):
                     self.rcnn_net = RCNNNet(num_classes=num_classes, input_channels=rcnn_input_channels,
                                             use_xyz=use_xyz)
                 elif cfg.RCNN.USE_SURFACE_FEATURES:
-                    self.rcnn_net = RCNNNet(num_classes=num_classes, input_channels=8,
-                                            use_xyz=use_xyz)
-
+                    if cfg.RCNN.USE_CLUSTER_MOMENTS:
+                        self.rcnn_net = RCNNNet(num_classes=num_classes, input_channels=14, use_xyz=use_xyz)
+                    else:
+                        self.rcnn_net = RCNNNet(num_classes=num_classes, input_channels=8, use_xyz=use_xyz)
                 else:
-                    self.rcnn_net = RCNNNet(num_classes=num_classes, input_channels=0,
-                                            use_xyz=use_xyz)
+                    self.rcnn_net = RCNNNet(num_classes=num_classes, input_channels=0, use_xyz=use_xyz)
             elif cfg.RCNN.BACKBONE == 'pointsift':
                 pass 
             else:

@@ -498,7 +498,8 @@ def eval_one_epoch_joint(model, dataloader, epoch_id, result_dir, logger):
         inputs = torch.from_numpy(pts_input).cuda(non_blocking=True).float()
         pts_clusters = torch.from_numpy(pts_clusters).cuda(non_blocking=True).float()
         input_data = {'pts_input': inputs, 'pts_clusters': pts_clusters, 'pts_surface_features': pts_surface_features}
-
+        # pc_show(inputs[0, :, 0:3].cpu().numpy(),
+        #         reflectivity=(pts_clusters[0, ...].cpu().numpy() * 255).astype(np.uint8))
         # model inference
         ret_dict = model(input_data)
 
@@ -643,10 +644,11 @@ def eval_one_epoch_joint(model, dataloader, epoch_id, result_dir, logger):
                                             rotation=np.array([0, 0, box[6] + np.pi / 2]),
                                             size=box[3:6],
                                             score=1 / (1 + np.exp(-box[-1])), cls=1) for box in ret_boxes]
-            pc_show(pts_lidar, ref.astype(np.uint8), ret_graphic_boxes, [image])
+            # pc_show(pts_lidar, ref.astype(np.uint8), ret_graphic_boxes, [image])
             final_total += pred_boxes3d_selected.shape[0]
             image_shape = dataset.get_image_shape(cur_sample_id)
-            save_kitti_format(cur_sample_id, calib, pred_boxes3d_selected, final_output_dir, scores_selected, image_shape)
+            save_kitti_format(cur_sample_id, calib, pred_boxes3d_selected, final_output_dir,
+                              scores_selected, image_shape)
 
     progress_bar.close()
     # dump empty files

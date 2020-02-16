@@ -73,6 +73,7 @@ RCNN:
     ROI_FG_AUG_TIMES: 10
 
     USE_SURFACE_FEATURES: True
+    USE_CLUSTER_MOMENTS: True
     USE_CLUSTERING_MASK: True
     USE_RPN_FEATURES: False
     USE_MASK: True
@@ -130,12 +131,12 @@ RCNN:
 # general training config
 TRAIN:
     SPLIT: train
-    VAL_SPLIT: val
+    VAL_SPLIT: smallval
 
     LR: 0.002
     LR_CLIP: 0.00001
     LR_DECAY: 0.5
-    DECAY_STEP_LIST: [100, 150, 180, 200]
+    DECAY_STEP_LIST: [30, 50, 70, 100] #[100, 150, 180, 200]
     LR_WARMUP: True
     WARMUP_MIN: 0.0002
     WARMUP_EPOCH: 1
