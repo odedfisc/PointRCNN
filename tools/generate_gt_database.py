@@ -4,6 +4,7 @@ import numpy as np
 import pickle
 import torch
 
+from lib.config import cfg
 import lib.utils.roipool3d.roipool3d_utils as roipool3d_utils
 from lib.datasets.kitti_dataset import KittiDataset
 import argparse
@@ -57,6 +58,9 @@ class GTDatabaseGenerator(KittiDataset):
             calib = self.get_calib(sample_id)
             clusters = self.get_clusters(sample_id)
             surface_features = self.get_surface_features(sample_id)
+            surface_features -= cfg.RCNN.FEATURES_MEAN
+            surface_features /= cfg.RCNN.FEATURES_STD
+
             pts_rect = calib.lidar_to_rect(pts_lidar[:, 0:3])
             pts_intensity = pts_lidar[:, 3]
 
@@ -98,7 +102,7 @@ class GTDatabaseGenerator(KittiDataset):
 
 
 if __name__ == '__main__':
-    dataset = GTDatabaseGenerator(root_dir='/data', split=args.split)
+    dataset = GTDatabaseGenerator(root_dir='/mnt/weka01/cvalgo', split=args.split)
     os.makedirs(args.save_dir, exist_ok=True)
 
     dataset.generate_gt_database()

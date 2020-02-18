@@ -14,13 +14,14 @@ def process(file, ext=None, data_path=None):
         ext.set_directions(dirs, False, True)
         features = ext.calc_simple_features(points, distances)
         features = features.reshape([-1, 6])
+        print(np.var(features, axis=0))
         with open(os.path.join(data_path, file).split('.')[0] + "_features.npy", 'wb') as f:
             np.save(f, features)
             print(f"Write {file}")
 
 
 if __name__ == '__main__':
-    data_path = "/data/KITTI/object/training/velodyne_small"
+    data_path = "/mnt/weka01/cvalgo/KITTI/object/training/velodyne_small"
     ext = FeaturesExtractor(0.4, 0.7)
     # for file in os.listdir(data_path):
     #     process(file, ext=ext, data_path=data_path)

@@ -254,6 +254,8 @@ class KittiRCNNDataset(KittiDataset):
             pts_lidar = self.get_lidar(sample_id)
             clusters = self.get_clusters(sample_id)
             surface_features = self.get_surface_features(sample_id)
+            surface_features -= cfg.RCNN.FEATURES_MEAN
+            surface_features /= cfg.RCNN.FEATURES_STD
 
             # get valid point (projected points should be in image)
             pts_rect = calib.lidar_to_rect(pts_lidar[:, 0:3])
