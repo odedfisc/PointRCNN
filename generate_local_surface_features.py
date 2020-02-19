@@ -21,7 +21,7 @@ def process(file, ext=None, data_path=None):
 
 
 if __name__ == '__main__':
-    data_path = "/mnt/weka01/cvalgo/KITTI/object/training/velodyne_small"
+    data_path = "/mnt/weka01/cvalgo/KITTI/object/testing/velodyne"
     ext = FeaturesExtractor(0.4, 0.7)
     # for file in os.listdir(data_path):
     #     process(file, ext=ext, data_path=data_path)

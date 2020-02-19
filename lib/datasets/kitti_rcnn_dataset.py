@@ -197,18 +197,24 @@ class KittiRCNNDataset(KittiDataset):
         return False
 
     @staticmethod
-    def get_valid_flag(pts_rect, pts_img, pts_rect_depth, img_shape):
+    def get_valid_flag(pts_rect, pts_img, pts_rect_depth, img_shape, surface_features=None):
         """
         Valid point should be in the image (and in the PC_AREA_SCOPE)
+        Optional: (surface features) slice points with valid surface features
         :param pts_rect:
         :param pts_img:
         :param pts_rect_depth:
         :param img_shape:
         :return:
         """
+        if surface_features is not None:
+            val_flag_0 = surface_features[:, 0] != -99
+        else:
+            val_flag_0 = np.ones_like(pts_img[:, 0]).astype(np.bool)
+
         val_flag_1 = np.logical_and(pts_img[:, 0] >= 0, pts_img[:, 0] < img_shape[1])
         val_flag_2 = np.logical_and(pts_img[:, 1] >= 0, pts_img[:, 1] < img_shape[0])
-        val_flag_merge = np.logical_and(val_flag_1, val_flag_2)
+        val_flag_merge = np.logical_and.reduce((val_flag_0, val_flag_1, val_flag_2))
         pts_valid_flag = np.logical_and(val_flag_merge, pts_rect_depth >= 0)
 
         if cfg.PC_REDUCE_BY_RANGE:
@@ -219,6 +225,7 @@ class KittiRCNNDataset(KittiDataset):
                          & (pts_z >= z_range[0]) & (pts_z <= z_range[1])
             pts_valid_flag = pts_valid_flag & range_flag
         return pts_valid_flag
+
 
     def __len__(self):
         if cfg.RPN.ENABLED:
@@ -254,8 +261,10 @@ class KittiRCNNDataset(KittiDataset):
             pts_lidar = self.get_lidar(sample_id)
             clusters = self.get_clusters(sample_id)
             surface_features = self.get_surface_features(sample_id)
-            surface_features -= cfg.RCNN.FEATURES_MEAN
-            surface_features /= cfg.RCNN.FEATURES_STD
+            surface_features[surface_features[:, 0] != -99] = surface_features[surface_features[:, 0] != -99] - \
+                                                              cfg.RCNN.FEATURES_MEAN
+            surface_features[surface_features[:, 0] != -99] = surface_features[surface_features[:, 0] != -99] /\
+                                                              cfg.RCNN.FEATURES_STD
 
             # get valid point (projected points should be in image)
             pts_rect = calib.lidar_to_rect(pts_lidar[:, 0:3])
@@ -271,7 +280,8 @@ class KittiRCNNDataset(KittiDataset):
             pts_rect, pts_intensity = aug_pts[:, 0:3], aug_pts[:, 3]
 
         pts_img, pts_rect_depth = calib.rect_to_img(pts_rect)
-        pts_valid_flag = self.get_valid_flag(pts_rect, pts_img, pts_rect_depth, img_shape)
+        pts_valid_flag = self.get_valid_flag(pts_rect, pts_img, pts_rect_depth, img_shape,
+                                             surface_features=surface_features)
 
         pts_rect = pts_rect[pts_valid_flag][:, 0:3]
         pts_intensity = pts_intensity[pts_valid_flag]
