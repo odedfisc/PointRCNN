@@ -13,6 +13,15 @@ import lib.utils.roipool3d.roipool3d_utils as roipool3d_utils
 
 from innoviz_webviewer.python_wrapper.web_visualizer import pc_show, GraphicBox
 
+
+def knn(x, k):
+    inner = -2 * torch.matmul(x.transpose(2, 1), x)
+    xx = torch.sum(x ** 2, dim=1, keepdim=True)
+    pairwise_distance = -xx - inner - xx.transpose(2, 1)
+    idx = pairwise_distance.topk(k=k, dim=-1)[1]  # (batch_size, num_points, k)
+    return idx
+
+
 class RCNNNet(nn.Module):
     def __init__(self, num_classes, input_channels=0, use_xyz=True):
         super().__init__()
@@ -130,6 +139,7 @@ class RCNNNet(nn.Module):
 
                 pts_input = torch.cat((target_dict['sampled_pts'], target_dict['pts_feature']), dim=2)
                 target_dict['pts_input'] = pts_input
+
             else:
                 rpn_xyz, rpn_features = input_data['rpn_xyz'], input_data['rpn_features']
                 batch_rois = input_data['roi_boxes3d']
@@ -169,16 +179,6 @@ class RCNNNet(nn.Module):
                     # tmp_pc = pooled_features[k, 0, :, 0:3].cpu().numpy()
                     # pc_show(tmp_pc[:, [2, 0, 1]] * np.array([1, -1, -1]))
 
-                if cfg.RCNN.USE_CLUSTER_MOMENTS:
-                    pooled_features_square = pooled_features[:, :, :, 0:3] * pooled_features[:, :, :, 0:3]
-                    pooled_features_xy = pooled_features[:, :, :, 0] * pooled_features[:, :, :, 1]
-                    pooled_features_xz = pooled_features[:, :, :, 0] * pooled_features[:, :, :, 2]
-                    pooled_features_yz = pooled_features[:, :, :, 1] * pooled_features[:, :, :, 2]
-                    pooled_features = torch.cat((pooled_features, pooled_features_square,
-                                                 pooled_features_xy.unsqueeze(dim=3),
-                                                 pooled_features_xz.unsqueeze(dim=3),
-                                                 pooled_features_yz.unsqueeze(dim=3)), dim=3)
-
                 pts_input = pooled_features.view(-1, pooled_features.shape[2], pooled_features.shape[3])
         else:
             pts_input = input_data['pts_input']
@@ -205,7 +205,15 @@ class RCNNNet(nn.Module):
         elif cfg.RCNN.USE_SURFACE_FEATURES:
             xyz_input = pts_input[..., 0: self.rcnn_input_channel].transpose(1, 2) #.unsqueeze(dim=3)
             if cfg.RCNN.USE_CLUSTER_MOMENTS:
-                moments_features = pts_input[..., -6:].transpose(1, 2)
+                pooled_features_square = pts_input[:, :, 0:3] * pts_input[:, :, 0:3]
+                pooled_features_xy = pts_input[:, :, 0] * pts_input[:, :, 1]
+                pooled_features_xz = pts_input[:, :, 0] * pts_input[:, :, 2]
+                pooled_features_yz = pts_input[:, :, 1] * pts_input[:, :, 2]
+                moments_features = torch.cat((pooled_features_square,
+                                             pooled_features_xy.unsqueeze(dim=2),
+                                             pooled_features_xz.unsqueeze(dim=2),
+                                             pooled_features_yz.unsqueeze(dim=2)), dim=2).transpose(1, 2)
+                pc_show(pts_input[0, :, 0:3].cpu().numpy())
                 hand_crafted_features = torch.cat((xyz_input[:, 3:, ...], moments_features), dim=1).contiguous()
                 l_xyz, l_features = [xyz], [hand_crafted_features.contiguous()]
             else:
